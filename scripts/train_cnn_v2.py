@@ -3,7 +3,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
 # =====================
@@ -66,19 +65,15 @@ class CNN1D(nn.Module):
 def main():
     print(f"使用设备: {DEVICE}")
 
-    X = np.load("data/processed/X.npy")
-    y = np.load("data/processed/y.npy")
+    X_train = np.load("data/splits/X_train.npy")
+    y_train = np.load("data/splits/y_train.npy")
 
-    # 先分出 Test（10%）
-    X_tmp, X_test, y_tmp, y_test = train_test_split(
-        X, y, test_size=0.1, random_state=42, stratify=y
-    )
+    X_val = np.load("data/splits/X_val.npy")
+    y_val = np.load("data/splits/y_val.npy")
 
-    # 再从剩余 90% 里分 Train / Val
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_tmp, y_tmp, test_size=0.2222, random_state=42, stratify=y_tmp
-        # 0.2222 × 90% ≈ 20%
-    )
+    X_test = np.load("data/splits/X_test.npy")
+    y_test = np.load("data/splits/y_test.npy")
+
 
     train_loader = DataLoader(BearingDataset(X_train, y_train),
                               batch_size=BATCH_SIZE, shuffle=True)
