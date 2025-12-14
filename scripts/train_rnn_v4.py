@@ -133,7 +133,13 @@ def train_and_test(run_id, train_loader, val_loader, test_loader):
     test_acc = accuracy_score(test_labels, test_preds)
     print(f"Test Acc (Run {run_id+1}): {test_acc:.4f}")
 
-    return test_acc, train_time, infer_time
+    return (
+        test_acc,
+        train_time,
+        infer_time,
+        np.array(test_labels),
+        np.array(test_preds),
+    )
 
 # =========================
 # 主函数
@@ -153,12 +159,21 @@ def main():
 
     test_accs, train_times, infer_times = [], [], []
 
+    all_test_labels = None
+    all_test_preds = None
+
     for run in range(NUM_RUNS):
         set_seed(3000 + run)
-        acc, t_time, i_time = train_and_test(run, train_loader, val_loader, test_loader)
+        acc, t_time, i_time, labels, preds = train_and_test(
+            run, train_loader, val_loader, test_loader
+        )
         test_accs.append(acc)
         train_times.append(t_time)
         infer_times.append(i_time)
+
+        # 只保存最后一次 run 的预测（用于混淆矩阵）
+        all_test_labels = labels
+        all_test_preds = preds
 
     test_accs = np.array(test_accs)
     train_times = np.array(train_times)
@@ -175,6 +190,8 @@ def main():
     np.save(f"{RESULT_DIR}/test_accs.npy", test_accs)
     np.save(f"{RESULT_DIR}/train_times.npy", train_times)
     np.save(f"{RESULT_DIR}/infer_times.npy", infer_times)
+    np.save(f"{RESULT_DIR}/y_true.npy", all_test_labels)
+    np.save(f"{RESULT_DIR}/y_pred.npy", all_test_preds)
 
     with open(f"{RESULT_DIR}/summary.txt", "w", encoding="utf-8") as f:
         f.write("RNN (LSTM) Results\n")

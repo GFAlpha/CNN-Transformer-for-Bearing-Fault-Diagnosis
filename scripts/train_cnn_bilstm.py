@@ -7,7 +7,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from sklearn.metrics import accuracy_score
 
 # =========================
-# Config
+# 参数
 # =========================
 DATA_DIR = "data/splits"
 RESULT_DIR = "results/cnn_bilstm"
@@ -21,7 +21,7 @@ NUM_CLASSES = 4
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # =========================
-# Model
+# CNN + BiLSTM 模型
 # =========================
 class CNN_BiLSTM(nn.Module):
     def __init__(self, num_classes):
@@ -61,7 +61,7 @@ class CNN_BiLSTM(nn.Module):
         return self.fc(out)
 
 # =========================
-# Train / Eval
+# 训练与评估函数
 # =========================
 def train_one_epoch(model, loader, criterion, optimizer):
     model.train()
@@ -88,34 +88,53 @@ def evaluate(model, loader):
         torch.cat(preds)
     )
 
+def evaluate_with_preds(model, loader):
+    """用于保存 y_true / y_pred"""
+    model.eval()
+    preds, labels = [], []
+
+    with torch.no_grad():
+        for x, y in loader:
+            x = x.to(DEVICE)
+            logits = model(x)
+            preds.append(logits.argmax(1).cpu().numpy())
+            labels.append(y.numpy())
+
+    y_true = np.concatenate(labels)
+    y_pred = np.concatenate(preds)
+
+    return y_true, y_pred
+
 def measure_inference_time(model, loader, repeat=20):
     model.eval()
     x, _ = next(iter(loader))
     x = x.to(DEVICE)
 
     with torch.no_grad():
-        # warm-up
-        for _ in range(5):
+        for _ in range(5):  # warm-up
             _ = model(x)
 
-        torch.cuda.synchronize() if DEVICE == "cuda" else None
-        start = time.time()
+        if DEVICE == "cuda":
+            torch.cuda.synchronize()
 
+        start = time.time()
         for _ in range(repeat):
             _ = model(x)
 
-        torch.cuda.synchronize() if DEVICE == "cuda" else None
+        if DEVICE == "cuda":
+            torch.cuda.synchronize()
+
         end = time.time()
 
     return (end - start) / repeat
 
 # =========================
-# Main
+# 主流程
 # =========================
 def main():
     os.makedirs(RESULT_DIR, exist_ok=True)
 
-    # ===== Load data =====
+    # ===== 加载数据 =====
     X_train = np.load(f"{DATA_DIR}/X_train.npy")
     y_train = np.load(f"{DATA_DIR}/y_train.npy")
     X_val   = np.load(f"{DATA_DIR}/X_val.npy")
@@ -127,6 +146,8 @@ def main():
     train_times = []
     infer_times = []
 
+    final_y_true, final_y_pred = None, None
+
     for run in range(RUNS):
         print(f"\n=== Run {run + 1}/{RUNS} ===")
 
@@ -135,40 +156,32 @@ def main():
         criterion = nn.CrossEntropyLoss()
 
         train_loader = DataLoader(
-            TensorDataset(
-                torch.tensor(X_train).float(),
-                torch.tensor(y_train).long()
-            ),
+            TensorDataset(torch.tensor(X_train).float(),
+                          torch.tensor(y_train).long()),
             batch_size=BATCH_SIZE,
             shuffle=True
         )
 
         val_loader = DataLoader(
-            TensorDataset(
-                torch.tensor(X_val).float(),
-                torch.tensor(y_val).long()
-            ),
+            TensorDataset(torch.tensor(X_val).float(),
+                          torch.tensor(y_val).long()),
             batch_size=BATCH_SIZE
         )
 
         test_loader = DataLoader(
-            TensorDataset(
-                torch.tensor(X_test).float(),
-                torch.tensor(y_test).long()
-            ),
+            TensorDataset(torch.tensor(X_test).float(),
+                          torch.tensor(y_test).long()),
             batch_size=BATCH_SIZE
         )
 
-        # ===== Train =====
+        # ===== 训练 =====
         best_val = 0.0
         best_state = None
 
         start_time = time.time()
-
-        for epoch in range(EPOCHS):
+        for _ in range(EPOCHS):
             train_one_epoch(model, train_loader, criterion, optimizer)
             val_acc = evaluate(model, val_loader)
-
             if val_acc > best_val:
                 best_val = val_acc
                 best_state = model.state_dict()
@@ -176,7 +189,7 @@ def main():
         train_time = time.time() - start_time
         train_times.append(train_time)
 
-        # ===== Test =====
+        # ===== 测试 =====
         model.load_state_dict(best_state)
         test_acc = evaluate(model, test_loader)
         test_accs.append(test_acc)
@@ -184,16 +197,22 @@ def main():
         infer_time = measure_inference_time(model, test_loader)
         infer_times.append(infer_time)
 
+        # ===== 仅最后一轮保存 y_true / y_pred =====
+        if run == RUNS - 1:
+            final_y_true, final_y_pred = evaluate_with_preds(model, test_loader)
+
         print(f"Test Acc: {test_acc:.4f}")
         print(f"Train Time: {train_time:.2f}s | Inference Time: {infer_time:.4f}s")
 
-    # ===== Save results =====
+    # ===== 保存结果 =====
     np.save(f"{RESULT_DIR}/test_accs.npy", np.array(test_accs))
     np.save(f"{RESULT_DIR}/train_times.npy", np.array(train_times))
     np.save(f"{RESULT_DIR}/infer_times.npy", np.array(infer_times))
+    np.save(f"{RESULT_DIR}/y_true.npy", final_y_true)
+    np.save(f"{RESULT_DIR}/y_pred.npy", final_y_pred)
 
     meta = {
-        "model": "CNN_BiLSTM",
+        "model": "CNN+BiLSTM",
         "epochs": EPOCHS,
         "batch_size": BATCH_SIZE,
         "lr": LR,

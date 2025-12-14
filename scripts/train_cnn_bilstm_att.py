@@ -7,7 +7,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from sklearn.metrics import accuracy_score
 
 # =========================
-# Config
+# 参数
 # =========================
 DATA_DIR = "data/splits"
 RESULT_DIR = "results/cnn_bilstm_att"
@@ -22,7 +22,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 os.makedirs(RESULT_DIR, exist_ok=True)
 
 # =========================
-# Attention Module
+# Attention 机制
 # =========================
 class TemporalAttention(nn.Module):
     def __init__(self, hidden_dim):
@@ -32,13 +32,13 @@ class TemporalAttention(nn.Module):
     def forward(self, x):
         # x: [B, T, 2H]
         scores = self.attn(x)              # [B, T, 1]
-        weights = torch.softmax(scores, 1)
-        context = torch.sum(weights * x, 1)
+        weights = torch.softmax(scores, dim=1)
+        context = torch.sum(weights * x, dim=1)
         return context
 
 
 # =========================
-# Model
+# CNN + BiLSTM + Attention 模型
 # =========================
 class CNN_BiLSTM_Att(nn.Module):
     def __init__(self, num_classes):
@@ -79,7 +79,7 @@ class CNN_BiLSTM_Att(nn.Module):
 
 
 # =========================
-# Train / Eval
+# 训练与评估函数
 # =========================
 def train_one_epoch(model, loader, criterion, optimizer):
     model.train()
@@ -114,11 +114,25 @@ def inference_time(model, loader):
     return total_time / len(loader.dataset)
 
 
+def collect_predictions(model, loader):
+    """用于混淆矩阵的 y_true / y_pred"""
+    model.eval()
+    all_preds, all_labels = [], []
+    with torch.no_grad():
+        for x, y in loader:
+            x = x.to(DEVICE)
+            logits = model(x)
+            preds = logits.argmax(dim=1).cpu().numpy()
+            all_preds.append(preds)
+            all_labels.append(y.numpy())
+    return np.concatenate(all_labels), np.concatenate(all_preds)
+
+
 # =========================
-# Main
+# 主函数
 # =========================
 def main():
-    # Load data
+    # 加载数据
     X_train = np.load(f"{DATA_DIR}/X_train.npy")
     y_train = np.load(f"{DATA_DIR}/y_train.npy")
     X_val   = np.load(f"{DATA_DIR}/X_val.npy")
@@ -129,6 +143,9 @@ def main():
     test_accs = []
     train_times = []
     infer_times = []
+
+    final_y_true = None
+    final_y_pred = None
 
     for run in range(RUNS):
         print(f"\n=== Run {run + 1}/{RUNS} ===")
@@ -155,59 +172,50 @@ def main():
             batch_size=BATCH_SIZE
         )
 
-        # -------- Train timing --------
+        # -------- 训练 --------
         start_train = time.time()
-
         best_val = 0.0
         best_state = None
 
-        for epoch in range(EPOCHS):
+        for _ in range(EPOCHS):
             train_one_epoch(model, train_loader, criterion, optimizer)
             val_acc = evaluate(model, val_loader)
             if val_acc > best_val:
                 best_val = val_acc
                 best_state = model.state_dict()
 
-        train_time = time.time() - start_train
-        train_times.append(train_time)
+        train_times.append(time.time() - start_train)
 
         model.load_state_dict(best_state)
 
-        # -------- Test --------
+        # -------- 测试 --------
         test_acc = evaluate(model, test_loader)
         test_accs.append(test_acc)
 
-        # -------- Inference timing --------
-        infer_t = inference_time(model, test_loader)
-        infer_times.append(infer_t)
+        # -------- 推理时间 --------
+        infer_times.append(inference_time(model, test_loader))
+
+        # 👉 只保存最后一次 run 的预测（固定 Test 集）
+        if run == RUNS - 1:
+            final_y_true, final_y_pred = collect_predictions(model, test_loader)
 
         print(f"Test Acc: {test_acc:.4f}")
-        print(f"Train Time: {train_time:.2f}s | Inference Time: {infer_t:.6f}s")
 
     # =========================
-    # Save results
+    # 保存结果
     # =========================
-    test_accs = np.array(test_accs)
-    train_times = np.array(train_times)
-    infer_times = np.array(infer_times)
-
-    np.save(f"{RESULT_DIR}/test_accs.npy", test_accs)
-    np.save(f"{RESULT_DIR}/train_times.npy", train_times)
-    np.save(f"{RESULT_DIR}/inference_times.npy", infer_times)
-
-    with open(f"{RESULT_DIR}/summary.txt", "w", encoding="utf-8") as f:
-        f.write("CNN + BiLSTM + Attention Results\n")
-        f.write(f"Mean Acc : {test_accs.mean():.4f}\n")
-        f.write(f"Std Acc  : {test_accs.std():.4f}\n")
-        f.write(f"Avg Train Time (s): {train_times.mean():.2f}\n")
-        f.write(f"Avg Inference Time (s): {infer_times.mean():.6f}\n")
+    np.save(f"{RESULT_DIR}/test_accs.npy", np.array(test_accs))
+    np.save(f"{RESULT_DIR}/train_times.npy", np.array(train_times))
+    np.save(f"{RESULT_DIR}/inference_times.npy", np.array(infer_times))
+    np.save(f"{RESULT_DIR}/y_true.npy", final_y_true)
+    np.save(f"{RESULT_DIR}/y_pred.npy", final_y_pred)
 
     print("\n===== Final Statistics =====")
     print("Test Accuracies:", test_accs)
-    print(f"Mean Acc: {test_accs.mean():.4f}")
-    print(f"Std Acc : {test_accs.std():.4f}")
-    print(f"Avg Train Time: {train_times.mean():.2f}s")
-    print(f"Avg Inference Time: {infer_times.mean():.6f}s")
+    print(f"Mean Acc: {np.mean(test_accs):.4f}")
+    print(f"Std Acc : {np.std(test_accs):.4f}")
+    print(f"Avg Train Time: {np.mean(train_times):.2f}s")
+    print(f"Avg Inference Time: {np.mean(infer_times):.6f}s")
 
 
 if __name__ == "__main__":

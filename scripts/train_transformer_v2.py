@@ -6,7 +6,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 # ======================
-# Config
+# 参数
 # ======================
 DATA_DIR = "data/splits"
 RESULT_DIR = "results/transformer"
@@ -20,7 +20,7 @@ NUM_CLASSES = 4
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # ======================
-# Dataset
+# 加载数据集
 # ======================
 def load_dataset():
     X_train = np.load(os.path.join(DATA_DIR, "X_train.npy"))
@@ -46,7 +46,7 @@ def load_dataset():
     )
 
 # ======================
-# Positional Encoding
+# 位置编码
 # ======================
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, max_len=5000):
@@ -61,10 +61,10 @@ class PositionalEncoding(nn.Module):
         self.register_buffer("pe", pe.unsqueeze(0))
 
     def forward(self, x):
-        return x + self.pe[:, : x.size(1)]
+        return x + self.pe[:, :x.size(1)]
 
 # ======================
-# Transformer Model
+# Transformer 模型
 # ======================
 class TransformerClassifier(nn.Module):
     def __init__(self, input_dim=1, d_model=64, nhead=4, num_layers=3):
@@ -97,7 +97,7 @@ class TransformerClassifier(nn.Module):
         return self.fc(x)
 
 # ======================
-# Train / Eval
+# 训练与评估函数
 # ======================
 def train_one_epoch(model, loader, criterion, optimizer):
     model.train()
@@ -119,28 +119,41 @@ def evaluate(model, loader):
             total += y.size(0)
     return correct / total
 
-def evaluate_with_timing(model, loader):
+def evaluate_with_timing_and_preds(model, loader):
     model.eval()
     correct, total = 0, 0
     times = []
+
+    all_preds = []
+    all_labels = []
 
     with torch.no_grad():
         for x, y in loader:
             x, y = x.to(DEVICE), y.to(DEVICE)
 
             start = time.time()
-            preds = model(x).argmax(dim=1)
+            logits = model(x)
+            preds = logits.argmax(dim=1)
             torch.cuda.synchronize() if DEVICE.type == "cuda" else None
             end = time.time()
 
             times.append(end - start)
+
+            all_preds.append(preds.cpu().numpy())
+            all_labels.append(y.cpu().numpy())
+
             correct += (preds == y).sum().item()
             total += y.size(0)
 
-    return correct / total, np.mean(times)
+    return (
+        correct / total,
+        np.mean(times),
+        np.concatenate(all_labels),
+        np.concatenate(all_preds),
+    )
 
 # ======================
-# Main
+# 主函数
 # ======================
 def main():
     train_loader, val_loader, test_loader = load_dataset()
@@ -148,6 +161,9 @@ def main():
     test_accs = []
     train_times = []
     infer_times = []
+
+    final_y_true = None
+    final_y_pred = None
 
     for run in range(NUM_RUNS):
         print(f"\n=== Run {run+1}/{NUM_RUNS} ===")
@@ -173,38 +189,43 @@ def main():
         train_times.append(end_train - start_train)
 
         model.load_state_dict(best_state)
-        test_acc, infer_time = evaluate_with_timing(model, test_loader)
+
+        test_acc, infer_time, y_true, y_pred = evaluate_with_timing_and_preds(
+            model, test_loader
+        )
 
         test_accs.append(test_acc)
         infer_times.append(infer_time)
 
+        # 只保存最后一次 run 的 y_true / y_pred（和你前面模型一致）
+        final_y_true = y_true
+        final_y_pred = y_pred
+
         print(f"Test Acc: {test_acc:.4f}, Avg Inference Time: {infer_time:.6f}s")
 
     # ======================
-    # Save Results
+    # 保存结果
     # ======================
-    test_accs = np.array(test_accs)
-    train_times = np.array(train_times)
-    infer_times = np.array(infer_times)
-
-    np.save(os.path.join(RESULT_DIR, "test_accs.npy"), test_accs)
-    np.save(os.path.join(RESULT_DIR, "train_times.npy"), train_times)
-    np.save(os.path.join(RESULT_DIR, "infer_times.npy"), infer_times)
+    np.save(os.path.join(RESULT_DIR, "test_accs.npy"), np.array(test_accs))
+    np.save(os.path.join(RESULT_DIR, "train_times.npy"), np.array(train_times))
+    np.save(os.path.join(RESULT_DIR, "infer_times.npy"), np.array(infer_times))
+    np.save(os.path.join(RESULT_DIR, "y_true.npy"), final_y_true)
+    np.save(os.path.join(RESULT_DIR, "y_pred.npy"), final_y_pred)
 
     with open(os.path.join(RESULT_DIR, "summary.txt"), "w") as f:
         f.write("===== Transformer Results =====\n")
-        f.write(f"Test Accuracies: {test_accs.tolist()}\n")
-        f.write(f"Mean Acc: {test_accs.mean():.4f}\n")
-        f.write(f"Std Acc : {test_accs.std():.4f}\n")
-        f.write(f"Avg Train Time: {train_times.mean():.2f}s\n")
-        f.write(f"Avg Inference Time: {infer_times.mean():.6f}s\n")
+        f.write(f"Test Accuracies: {test_accs}\n")
+        f.write(f"Mean Acc: {np.mean(test_accs):.4f}\n")
+        f.write(f"Std Acc : {np.std(test_accs):.4f}\n")
+        f.write(f"Avg Train Time: {np.mean(train_times):.2f}s\n")
+        f.write(f"Avg Inference Time: {np.mean(infer_times):.6f}s\n")
 
     print("\n===== Final Statistics =====")
     print("Test Accuracies:", test_accs)
-    print("Mean Acc:", test_accs.mean())
-    print("Std Acc :", test_accs.std())
-    print("Avg Train Time:", train_times.mean(), "s")
-    print("Avg Inference Time:", infer_times.mean(), "s")
+    print("Mean Acc:", np.mean(test_accs))
+    print("Std Acc :", np.std(test_accs))
+    print("Avg Train Time:", np.mean(train_times), "s")
+    print("Avg Inference Time:", np.mean(infer_times), "s")
 
 if __name__ == "__main__":
     main()

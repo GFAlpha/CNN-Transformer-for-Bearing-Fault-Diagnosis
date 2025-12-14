@@ -10,7 +10,7 @@ RESULTS_DIR = "results"
 OUTPUT_DIR = "analysis_results"
 
 MODEL_ORDER = [
-    ("cnn_multi_run", "CNN"),
+    ("cnn", "CNN"),
     ("rnn_lstm", "RNN"),
     ("cnn_bilstm", "CNN+BiLSTM"),
     ("cnn_bilstm_att", "CNN+BiLSTM+Att"),

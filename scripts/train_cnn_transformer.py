@@ -1,5 +1,3 @@
-# scripts/train_cnn_transformer.py
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -9,7 +7,7 @@ import os
 import time
 
 # =========================
-# CNN + Transformer Model
+# CNN + Transformer 模型
 # =========================
 class CNNTransformer(nn.Module):
     def __init__(self, num_classes):
@@ -39,7 +37,10 @@ class CNNTransformer(nn.Module):
             dropout=0.1,
             batch_first=True
         )
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=2)
+        self.transformer = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=2
+        )
 
         self.classifier = nn.Sequential(
             nn.Linear(128, 64),
@@ -57,7 +58,7 @@ class CNNTransformer(nn.Module):
 
 
 # =========================
-# Train / Eval
+# 训练与评估函数
 # =========================
 def train_one_epoch(model, loader, optimizer, criterion, device):
     model.train()
@@ -81,6 +82,19 @@ def evaluate(model, loader, device):
     return accuracy_score(labels, preds)
 
 
+def evaluate_with_preds(model, loader, device):
+    """用于最终保存 y_true / y_pred"""
+    model.eval()
+    preds, labels = [], []
+    with torch.no_grad():
+        for x, y in loader:
+            x = x.to(device)
+            out = model(x).argmax(dim=1).cpu().numpy()
+            preds.extend(out)
+            labels.extend(y.numpy())
+    return np.array(labels), np.array(preds)
+
+
 def inference_time(model, loader, device):
     model.eval()
     start = time.time()
@@ -92,7 +106,7 @@ def inference_time(model, loader, device):
 
 
 # =========================
-# Main
+# 主训练流程
 # =========================
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -109,7 +123,11 @@ def main():
     def make_loader(X, y, shuffle):
         X = torch.tensor(X, dtype=torch.float32).unsqueeze(1)
         y = torch.tensor(y, dtype=torch.long)
-        return DataLoader(TensorDataset(X, y), batch_size=64, shuffle=shuffle)
+        return DataLoader(
+            TensorDataset(X, y),
+            batch_size=64,
+            shuffle=shuffle
+        )
 
     train_loader = make_loader(X_train, y_train, True)
     val_loader   = make_loader(X_val, y_val, False)
@@ -123,10 +141,15 @@ def main():
     save_dir = "results/cnn_transformer"
     os.makedirs(save_dir, exist_ok=True)
 
+    final_y_true, final_y_pred = None, None
+
     for run in range(NUM_RUNS):
         print(f"\n=== Run {run+1}/{NUM_RUNS} ===")
 
-        model = CNNTransformer(num_classes=len(np.unique(y_train))).to(device)
+        model = CNNTransformer(
+            num_classes=len(np.unique(y_train))
+        ).to(device)
+
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
         criterion = nn.CrossEntropyLoss()
 
@@ -156,10 +179,21 @@ def main():
         print(f"Test Acc: {test_acc:.4f}")
         print(f"Train Time: {train_t:.2f}s | Infer Time: {infer_t:.4f}s")
 
-    # Save results
+        # 只保存最后一次 run 的预测结果
+        if run == NUM_RUNS - 1:
+            final_y_true, final_y_pred = evaluate_with_preds(
+                model, test_loader, device
+            )
+
+    # =========================
+    # 保存结果
+    # =========================
     np.save(f"{save_dir}/test_accs.npy", np.array(test_accs))
     np.save(f"{save_dir}/train_times.npy", np.array(train_times))
     np.save(f"{save_dir}/infer_times.npy", np.array(infer_times))
+
+    np.save(f"{save_dir}/y_true.npy", final_y_true)
+    np.save(f"{save_dir}/y_pred.npy", final_y_pred)
 
     with open(f"{save_dir}/summary.txt", "w", encoding="utf-8") as f:
         f.write("CNN + Transformer Results\n")
