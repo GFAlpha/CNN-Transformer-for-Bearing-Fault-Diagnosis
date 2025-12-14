@@ -1,0 +1,6 @@
+===== CNN Performance Summary =====
+Accuracy Mean: 0.9954
+Accuracy Std : 0.0020
+
+Train Time Mean (s): 4.32
+Inference Time Mean (s): 0.0132

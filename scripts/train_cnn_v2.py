@@ -1,15 +1,17 @@
-# 这其实是v4版本，但是懒得重命名或者新建文件夹了（v2版本的代码应该在项目根文件里，是.txt格式的）
+# 这其实是v5版本，但是懒得重命名或者新建文件夹了（v2版本的代码应该在项目根文件里，是.txt格式的）
 # v1版本就是项目里的train_cnn.py
 # v2版本是每次训练都随机划分数据集
 # v3版本是固定划分数据集，多次训练取平均
 # v4版本是将v3版本稍作修改，实现保存结果供后续画图
+# v5版本是将v4版本稍作修改，实现运行后记录用时等指标
 import os
+import time
+import random
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import accuracy_score
-import random
 
 # =========================
 # 1. 全局参数
@@ -22,7 +24,6 @@ NUM_CLASSES = 4
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-# 结果保存目录（给 A-2 画图用）
 RESULT_DIR = "results/cnn_multi_run"
 MODEL_DIR = "models"
 
@@ -39,7 +40,7 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)
 
 # =========================
-# 3. 数据集定义
+# 3. 数据集
 # =========================
 class BearingDataset(Dataset):
     def __init__(self, X, y):
@@ -69,7 +70,7 @@ class CNN1D(nn.Module):
             nn.MaxPool1d(2),
         )
 
-        # ⚠️ 256 需与你的切片长度匹配
+        # ⚠️ 32 * 256 要与你的切片长度一致
         self.classifier = nn.Sequential(
             nn.Linear(32 * 256, 128),
             nn.ReLU(),
@@ -86,7 +87,7 @@ class CNN1D(nn.Module):
 # =========================
 def train_and_test(run_id, train_loader, val_loader, test_loader):
 
-    print(f"\n===== Run {run_id + 1} =====")
+    print(f"\n===== Run {run_id + 1}/{NUM_RUNS} =====")
 
     model = CNN1D(NUM_CLASSES).to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
@@ -95,7 +96,11 @@ def train_and_test(run_id, train_loader, val_loader, test_loader):
     best_val_acc = 0.0
     best_model_path = os.path.join(MODEL_DIR, f"cnn_run{run_id + 1}_best.pth")
 
-    # --------- 训练 ---------
+    # =========================
+    # ⏱️ 训练时间统计
+    # =========================
+    train_start_time = time.time()
+
     for epoch in range(EPOCHS):
         model.train()
         for x, y in train_loader:
@@ -106,7 +111,7 @@ def train_and_test(run_id, train_loader, val_loader, test_loader):
             loss.backward()
             optimizer.step()
 
-        # --------- 验证 ---------
+        # -------- 验证 --------
         model.eval()
         val_preds, val_labels = [], []
         with torch.no_grad():
@@ -124,29 +129,37 @@ def train_and_test(run_id, train_loader, val_loader, test_loader):
 
         print(f"Epoch [{epoch+1:02d}/{EPOCHS}] | Val Acc: {val_acc:.4f}")
 
-    # --------- 测试 ---------
+    train_time = time.time() - train_start_time
+
+    # =========================
+    # ⏱️ 推理时间统计
+    # =========================
     model.load_state_dict(torch.load(best_model_path))
     model.eval()
 
     test_preds, test_labels = [], []
+
+    infer_start_time = time.time()
     with torch.no_grad():
         for x, y in test_loader:
             x, y = x.to(DEVICE), y.to(DEVICE)
             preds = model(x).argmax(dim=1)
             test_preds.extend(preds.cpu().numpy())
             test_labels.extend(y.cpu().numpy())
+    inference_time = time.time() - infer_start_time
 
     test_acc = accuracy_score(test_labels, test_preds)
-    print(f"Test Acc (Run {run_id + 1}): {test_acc:.4f}")
 
-    return test_acc
+    print(f"Test Acc: {test_acc:.4f}")
+    print(f"Train Time: {train_time:.2f}s | Inference Time: {inference_time:.4f}s")
+
+    return test_acc, train_time, inference_time
 
 # =========================
 # 6. 主函数
 # =========================
 def main():
 
-    # --------- 加载固定数据 ---------
     X_train = np.load("data/splits/X_train.npy")
     y_train = np.load("data/splits/y_train.npy")
 
@@ -174,36 +187,44 @@ def main():
         shuffle=False
     )
 
-    all_test_acc = []
+    all_accs = []
+    all_train_times = []
+    all_infer_times = []
 
-    # --------- 多次随机训练 ---------
     for run in range(NUM_RUNS):
         set_seed(1000 + run)
-        acc = train_and_test(
-            run,
-            train_loader,
-            val_loader,
-            test_loader
+        acc, t_train, t_infer = train_and_test(
+            run, train_loader, val_loader, test_loader
         )
-        all_test_acc.append(acc)
+        all_accs.append(acc)
+        all_train_times.append(t_train)
+        all_infer_times.append(t_infer)
 
-    all_test_acc = np.array(all_test_acc)
+    all_accs = np.array(all_accs)
+    all_train_times = np.array(all_train_times)
+    all_infer_times = np.array(all_infer_times)
 
     # =========================
-    # ⭐ 保存结果（给 A-2 画图用）
+    # ⭐ 统一保存（npy）
     # =========================
-    np.save(os.path.join(RESULT_DIR, "test_accs.npy"), all_test_acc)
+    np.save(os.path.join(RESULT_DIR, "test_accs.npy"), all_accs)
+    np.save(os.path.join(RESULT_DIR, "train_times.npy"), all_train_times)
+    np.save(os.path.join(RESULT_DIR, "inference_times.npy"), all_infer_times)
 
-    with open(os.path.join(RESULT_DIR, "test_accs.txt"), "w") as f:
-        for i, acc in enumerate(all_test_acc):
-            f.write(f"Run {i+1}: {acc:.4f}\n")
-        f.write(f"\nMean: {all_test_acc.mean():.4f}\n")
-        f.write(f"Std: {all_test_acc.std():.4f}\n")
+    # 人类可读 summary
+    with open(os.path.join(RESULT_DIR, "summary.txt"), "w") as f:
+        f.write("===== CNN Performance Summary =====\n")
+        f.write(f"Accuracy Mean: {all_accs.mean():.4f}\n")
+        f.write(f"Accuracy Std : {all_accs.std():.4f}\n\n")
+        f.write(f"Train Time Mean (s): {all_train_times.mean():.2f}\n")
+        f.write(f"Inference Time Mean (s): {all_infer_times.mean():.4f}\n")
 
     print("\n===== Final Statistics =====")
-    print("Test Accuracies:", all_test_acc)
-    print(f"Mean Test Acc: {all_test_acc.mean():.4f}")
-    print(f"Std Test Acc: {all_test_acc.std():.4f}")
+    print("Test Accuracies:", all_accs)
+    print(f"Mean Acc: {all_accs.mean():.4f}")
+    print(f"Std Acc : {all_accs.std():.4f}")
+    print(f"Avg Train Time: {all_train_times.mean():.2f}s")
+    print(f"Avg Inference Time: {all_infer_times.mean():.4f}s")
 
 # =========================
 # 7. 入口
