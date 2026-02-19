@@ -1,0 +1,7 @@
+{
+  "model_key": "ml_knn",
+  "display_name": "KNN",
+  "tag": "clean",
+  "infer_ms_per_sample": 2.9132695552816523,
+  "note": "ML baseline noise evaluation; infer_times.npy stores per-sample seconds."
+}

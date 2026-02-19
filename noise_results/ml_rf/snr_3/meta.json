@@ -1,0 +1,7 @@
+{
+  "model_key": "ml_rf",
+  "display_name": "RandomForest",
+  "tag": "snr_3",
+  "infer_ms_per_sample": 0.05355313568436536,
+  "note": "ML baseline noise evaluation; infer_times.npy stores per-sample seconds."
+}

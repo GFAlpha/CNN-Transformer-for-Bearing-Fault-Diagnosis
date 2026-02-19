@@ -1,0 +1,9 @@
+Clean Data Summary (DL vs ML)
+Models: CNN+Transformer(NoiseAug) vs SVM/RF/KNN
+============================================================================================
+Model                         Acc Mean   Acc Std    Train(s)   Infer(ms)
+--------------------------------------------------------------------------------------------
+CNN+Transformer(NoiseAug)       0.9989    0.0000       46.72       3.715
+SVM(RBF)                        0.7024    0.0000       10.99       2.799
+RandomForest                    0.7279    0.0043        5.85       0.066
+KNN                             0.3797    0.0000        0.07       0.086

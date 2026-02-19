@@ -1,0 +1,7 @@
+{
+  "model_key": "ml_svm",
+  "display_name": "SVM(RBF)",
+  "tag": "clean",
+  "infer_ms_per_sample": 2.49492725200246,
+  "note": "ML baseline noise evaluation; infer_times.npy stores per-sample seconds."
+}
