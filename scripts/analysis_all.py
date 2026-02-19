@@ -12,11 +12,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def run_step(py_exe: str, script_path: str, title: str):
-    """
-    运行一个脚本步骤。
-    - 失败则直接退出（防止后续产物基于错误结果继续跑）
-    - cwd 固定为项目根目录，避免相对路径错乱
-    """
+    """运行一个脚本步骤，失败则直接退出（防止后续产物基于错误结果继续跑）"""
     print("\n" + "=" * 80)
     print(f"[STEP] {title}")
     print(f"[RUN ] {py_exe} {script_path}")
@@ -28,14 +24,14 @@ def run_step(py_exe: str, script_path: str, title: str):
 
     if r.returncode != 0:
         print(f"\n[ERROR] 步骤失败：{title}")
-        print("        请查看上方报错信息（通常是缺文件/路径不对/依赖缺失）。")
+        print("        请查看上方报错信息（通常是缺文件/路径不对/依赖缺失/未激活env）。")
         sys.exit(r.returncode)
 
     print(f"[OK]  步骤完成：{title}  (耗时 {(end - start)})")
 
 
 def _fmt_path(p: str) -> str:
-    """为了复制方便，统一输出成相对路径）"""
+    """复制方便，统一输出成相对路径"""
     try:
         rel = os.path.relpath(p, PROJECT_ROOT)
         return rel.replace("\\", "/")
@@ -44,45 +40,50 @@ def _fmt_path(p: str) -> str:
 
 
 def _exists_mark(p: str) -> str:
-    """存在✅；不存在⚠️（提醒哪里没跑出来）"""
     return "✅" if os.path.exists(p) else "⚠️"
 
 
 def print_key_artifacts():
     """
-    在最后输出对人最有用的关键产物清单,最常用的就是这些文件
+    在最后输出最有用的关键产物清单
+    说明：
+      - ✅ 表示文件存在
+      - ⚠️ 表示文件不存在（可能被 skip 了，或某步运行失败）
     """
     analysis_dir = os.path.join(PROJECT_ROOT, "analysis_results")
     noise_dir = os.path.join(analysis_dir, "noise")
     cm_dir = os.path.join(analysis_dir, "confusion_matrices")
     dl_vs_ml_dir = os.path.join(analysis_dir, "dl_vs_ml")
+    comp_dir = os.path.join(analysis_dir, "complexity")
 
-    # ========== 1) 干净数据（全模型对比） ==========
-    clean_files = [
+    # 关键文件
+    key_files = [
+        # ---- 干净数据（全模型对比）----
         ("干净数据总表", os.path.join(analysis_dir, "summary.txt")),
         ("干净数据 CSV", os.path.join(analysis_dir, "summary.csv")),
         ("干净数据：准确率对比图", os.path.join(analysis_dir, "accuracy_comparison.png")),
         ("干净数据：训练时间对比图(log)", os.path.join(analysis_dir, "train_time_comparison_log.png")),
         ("干净数据：推理时间对比图(log)", os.path.join(analysis_dir, "infer_time_comparison_log.png")),
-    ]
 
-    # ========== 2) 噪声鲁棒性（DL 全模型） ==========
-    noise_files = [
+        # ---- 噪声鲁棒性（DL 全模型）----
         ("噪声鲁棒性总表", os.path.join(noise_dir, "noise_summary.txt")),
         ("噪声鲁棒性 CSV", os.path.join(noise_dir, "noise_summary_table.csv")),
         ("噪声鲁棒性曲线图", os.path.join(noise_dir, "acc_vs_snr.png")),
-    ]
 
-    # ========== 3) DL vs ML（论文主对比） ==========
-    dl_vs_ml_files = [
-        ("DL vs ML：干净数据对比（txt）", os.path.join(dl_vs_ml_dir, "clean_summary_dl_vs_ml.txt")),
-        ("DL vs ML：干净数据对比（csv）", os.path.join(dl_vs_ml_dir, "clean_summary_dl_vs_ml.csv")),
-        ("DL vs ML：噪声鲁棒性对比（txt）", os.path.join(dl_vs_ml_dir, "noise_summary_dl_vs_ml.txt")),
-        ("DL vs ML：噪声鲁棒性对比（csv）", os.path.join(dl_vs_ml_dir, "noise_summary_dl_vs_ml.csv")),
+        # ---- DL vs ML----
+        ("DL vs ML：干净对比（txt）", os.path.join(dl_vs_ml_dir, "clean_summary_dl_vs_ml.txt")),
+        ("DL vs ML：噪声对比（txt）", os.path.join(dl_vs_ml_dir, "noise_summary_dl_vs_ml.txt")),
         ("DL vs ML：噪声曲线图（png）", os.path.join(dl_vs_ml_dir, "acc_vs_snr_dl_vs_ml.png")),
+
+        # ---- 复杂度统计（参数量/FLOPs）----
+        ("模型复杂度：参数量/FLOPs（txt）", os.path.join(comp_dir, "model_complexity.txt")),
+        ("模型复杂度：参数量/FLOPs（csv）", os.path.join(comp_dir, "model_complexity.csv")),
+
+        # ---- 混淆矩阵目录 ----
+        ("混淆矩阵目录（所有模型）", cm_dir),
     ]
 
-    # ========== 4) 混淆矩阵（定性分析 / 举例用） ==========
+    # 混淆矩阵常看的几张
     cm_files = [
         ("混淆矩阵：CNN", os.path.join(cm_dir, "cm_cnn.png")),
         ("混淆矩阵：LSTM", os.path.join(cm_dir, "cm_rnn_lstm.png")),
@@ -97,21 +98,10 @@ def print_key_artifacts():
     print("【关键产物清单】")
     print("=" * 80)
 
-    print("\n1) 干净数据对比（全模型）")
-    for name, p in clean_files:
+    for name, p in key_files:
         print(f"  {_exists_mark(p)} {name}: {_fmt_path(p)}")
 
-    print("\n2) 噪声鲁棒性评估（DL 全模型）")
-    for name, p in noise_files:
-        print(f"  {_exists_mark(p)} {name}: {_fmt_path(p)}")
-
-    print("\n3) DL vs ML 主对比")
-    print(f"  {_exists_mark(dl_vs_ml_dir)} DL vs ML 输出目录: {_fmt_path(dl_vs_ml_dir)}")
-    for name, p in dl_vs_ml_files:
-        print(f"  {_exists_mark(p)} {name}: {_fmt_path(p)}")
-
-    print("\n4) 混淆矩阵")
-    print(f"  {_exists_mark(cm_dir)} 混淆矩阵目录: {_fmt_path(cm_dir)}")
+    print("\n【混淆矩阵】")
     for name, p in cm_files:
         print(f"  {_exists_mark(p)} {name}: {_fmt_path(p)}")
 
@@ -120,43 +110,36 @@ def print_key_artifacts():
 
 def print_final_reminder():
     """
-    一个提示，避免跑完后不知道先看哪几个。
+    在最后输出一些建议
     """
     analysis_dir = os.path.join(PROJECT_ROOT, "analysis_results")
     noise_dir = os.path.join(analysis_dir, "noise")
     dl_vs_ml_dir = os.path.join(analysis_dir, "dl_vs_ml")
+    comp_dir = os.path.join(analysis_dir, "complexity")
 
-    # 必看
     must_watch = [
         ("【干净数据总表】(全模型 Acc/Std/Train/Infer)", os.path.join(analysis_dir, "summary.txt")),
-        ("【干净数据三张图】(准确率/训练时间log/推理时间log)", os.path.join(analysis_dir, "accuracy_comparison.png")),
         ("【噪声鲁棒性总表】(Clean→9→6→3→0 + drop%)", os.path.join(noise_dir, "noise_summary.txt")),
-        ("【噪声曲线图】(全DL模型 acc vs SNR)", os.path.join(noise_dir, "acc_vs_snr.png")),
-        ("【DL vs ML 干净对比】(目标模型 vs SVM/RF/KNN)", os.path.join(dl_vs_ml_dir, "clean_summary_dl_vs_ml.txt")),
-        ("【DL vs ML 噪声对比】(最关键主对比之一)", os.path.join(dl_vs_ml_dir, "noise_summary_dl_vs_ml.txt")),
-        ("【DL vs ML 噪声曲线图】(论文主图)", os.path.join(dl_vs_ml_dir, "acc_vs_snr_dl_vs_ml.png")),
+        ("【DL vs ML 噪声曲线图】(论文主图之一)", os.path.join(dl_vs_ml_dir, "acc_vs_snr_dl_vs_ml.png")),
+        ("【模型复杂度表】(Params/FLOPs)", os.path.join(comp_dir, "model_complexity.txt")),
     ]
 
     print("\n" + "=" * 80)
-    print("【提醒】跑完以后最需要优先检查/用于写论文的输出文件：")
+    print("【提醒】跑完以后最优先检查的输出文件：")
     print("=" * 80)
 
     for name, p in must_watch:
         print(f"  {_exists_mark(p)} {name}: {_fmt_path(p)}")
 
-    print("\n【建议检查点】")
-    print("  1) 如果出现 ⚠️，通常代表对应步骤被跳过或前面某一步失败。")
-    print("  2) 写论文时：优先引用 txt（更像论文表格），csv 用来导入 Excel 或二次加工。")
-    print("  3) 噪声部分重点看：noise_summary.txt 里的 drop_snr_0（鲁棒性提升最直观）。")
-    print("  4) DL vs ML 重点看：acc_vs_snr_dl_vs_ml.png（最像论文“主图”）。")
     print("=" * 80)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="一键运行：噪声评估 + 汇总分析 + 画图 + 混淆矩阵（建议 train 完后执行）"
+        description="一键运行：噪声评估 + 汇总分析 + 画图 + 混淆矩阵 + DLvsML + 复杂度统计"
     )
 
+    # 原有步骤控制开关
     parser.add_argument("--skip_make_noisy", action="store_true", help="跳过生成带噪测试集 make_noisy_testset.py")
     parser.add_argument("--skip_noise_eval", action="store_true", help="跳过噪声评估 noise_test_all_models.py")
     parser.add_argument("--skip_noise_analyze", action="store_true", help="跳过噪声汇总分析 analyze_noise_results.py")
@@ -164,12 +147,15 @@ def main():
     parser.add_argument("--skip_clean_analyze", action="store_true", help="跳过干净数据汇总分析 analyze_all_results_v4.py")
     parser.add_argument("--skip_confusion", action="store_true", help="跳过混淆矩阵绘制 plot_confusion_matrices_all.py")
 
-    # DL vs ML
+    # DL vs ML 主对比
     parser.add_argument("--skip_dl_vs_ml", action="store_true", help="跳过 DL vs ML 对比 analyze_dl_vs_ml.py")
+
+    # 复杂度统计（参数量/FLOPs）
+    parser.add_argument("--skip_complexity", action="store_true", help="跳过 模型复杂度统计 analyze_model_complexity.py")
 
     args = parser.parse_args()
 
-    py_exe = sys.executable  # 使用当前虚拟环境的 python（env）
+    py_exe = sys.executable  # 使用当前终端环境下的 python（建议在 env 中运行）
     print("[INFO] Using python:", py_exe)
     print("[INFO] Project root:", PROJECT_ROOT)
 
@@ -203,19 +189,22 @@ def main():
         run_step(py_exe, os.path.join("scripts", "plot_confusion_matrices_all.py"),
                  "绘制混淆矩阵（analysis_results/confusion_matrices/）")
 
-    # 7)  DL vs ML 主对比
+    # 7) DL vs ML 主对比（建议放后面，论文主线更直接）
     if not args.skip_dl_vs_ml:
         run_step(py_exe, os.path.join("scripts", "analyze_dl_vs_ml.py"),
                  "DL vs ML 主对比分析（analysis_results/dl_vs_ml/）")
+
+    # 8) 复杂度统计（参数量/FLOPs）
+    if not args.skip_complexity:
+        run_step(py_exe, os.path.join("scripts", "analyze_model_complexity.py"),
+                 "模型复杂度统计（参数量/FLOPs，analysis_results/complexity/）")
 
     print("\n" + "=" * 80)
     print("[DONE] analysis_all.py 全流程执行完成 ✅")
     print("=" * 80)
 
-    # 输出关键产物清单
+    # 最后输出：关键产物清单 
     print_key_artifacts()
-
-    # “额外提醒段落”
     print_final_reminder()
 
 

@@ -1,0 +1,20 @@
+Model Complexity Summary (Params & FLOPs)
+Generated at: 2026-02-19 12:54:00
+Notes:
+ - Params: total/trainable parameters.
+ - FLOPs: measured by torch.profiler(with_flops=True) with batch=1.
+ - Some ops may not report FLOPs in PyTorch -> shown as N/A.
+==============================================================================================================
+Model                                Input     Params(M)  Trainable(M)        GFLOPs
+--------------------------------------------------------------------------------------------------------------
+CNN                           [1, 1, 1024]        1.0519        1.0519        0.0021
+LSTM                           [1, 32, 32]        0.2156        0.2156        0.0000
+CNN+BiLSTM                       [1, 1024]        0.0534        0.0534        0.0000
+CNN+BiLSTM+Att                   [1, 1024]        0.0535        0.0535        0.0000
+Transformer                   [1, 1024, 1]        0.1008        0.1008        0.9565
+CNN+Transformer               [1, 1, 1024]        0.3092        0.3092        0.0671
+CNN+Transformer(NoiseAug)     [1, 1, 1024]        0.3092        0.3092        0.0671
+==============================================================================================================
+Tips for thesis:
+ - Use Params + Inference Time as 'efficiency' indicators.
+ - NoiseAug has same Params/FLOPs as CNN+Transformer; improvement comes from training strategy.

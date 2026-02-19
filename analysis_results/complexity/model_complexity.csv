@@ -1,0 +1,8 @@
+﻿model_key,model,input_shape(batch=1),total_params,trainable_params,total_params_M,trainable_params_M,flops,gflops
+cnn,CNN,"[1, 1, 1024]",1051940,1051940,1.05194,1.05194,2098176.0,0.002098176
+rnn_lstm,LSTM,"[1, 32, 32]",215556,215556,0.215556,0.215556,2048.0,2.048e-06
+cnn_bilstm,CNN+BiLSTM,"[1, 1024]",53412,53412,0.053412,0.053412,1536.0,1.536e-06
+cnn_bilstm_att,CNN+BiLSTM+Att,"[1, 1024]",53541,53541,0.053541,0.053541,17984.0,1.7984e-05
+transformer,Transformer,"[1, 1024, 1]",100804,100804,0.100804,0.100804,956498432.0,0.956498432
+cnn_transformer,CNN+Transformer,"[1, 1, 1024]",309188,309188,0.309188,0.309188,67125760.0,0.06712576
+cnn_transformer_noiseaug,CNN+Transformer(NoiseAug),"[1, 1, 1024]",309188,309188,0.309188,0.309188,67125760.0,0.06712576
