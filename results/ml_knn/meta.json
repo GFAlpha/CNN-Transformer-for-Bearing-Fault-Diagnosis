@@ -1,0 +1,14 @@
+{
+  "model_key": "ml_knn",
+  "display_name": "KNN",
+  "notes": "KNN 非参数模型，训练快；推理慢（要算距离），但很好解释。",
+  "seed_base": 42,
+  "runs": 5,
+  "best_val_acc": 0.37058152793614596,
+  "test_acc_mean": 0.37970353477765106,
+  "test_acc_std": 0.0,
+  "avg_train_time_s": 0.07426257998449728,
+  "avg_infer_time_s_total_predict": 0.07524384001735598,
+  "feature_type": "raw_flatten_1024",
+  "avg_infer_time_s_per_sample": 8.579685292742986e-05
+}

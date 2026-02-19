@@ -1,0 +1,14 @@
+{
+  "model_key": "ml_rf",
+  "display_name": "RandomForest",
+  "notes": "RF 对尺度不敏感，鲁棒易用；训练/推理速度通常不错。",
+  "seed_base": 42,
+  "runs": 5,
+  "best_val_acc": 0.7212086659064995,
+  "test_acc_mean": 0.7279361459521094,
+  "test_acc_std": 0.004302842021462508,
+  "avg_train_time_s": 5.853413759998512,
+  "avg_infer_time_s_total_predict": 0.058285439992323516,
+  "feature_type": "raw_flatten_1024",
+  "avg_infer_time_s_per_sample": 6.646002279626399e-05
+}

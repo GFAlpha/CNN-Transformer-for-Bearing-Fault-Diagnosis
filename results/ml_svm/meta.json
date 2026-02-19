@@ -1,0 +1,14 @@
+{
+  "model_key": "ml_svm",
+  "display_name": "SVM(RBF)",
+  "notes": "SVM 对尺度敏感，需标准化；RBF 核通常作为强基线。",
+  "seed_base": 42,
+  "runs": 5,
+  "best_val_acc": 0.6944127708095781,
+  "test_acc_mean": 0.7023945267958951,
+  "test_acc_std": 0.0,
+  "avg_train_time_s": 10.993719039985445,
+  "avg_infer_time_s_total_predict": 2.4546542800031603,
+  "feature_type": "raw_flatten_1024",
+  "avg_infer_time_s_per_sample": 0.0027989216419648352
+}
