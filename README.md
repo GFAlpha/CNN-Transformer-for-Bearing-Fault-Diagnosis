@@ -1,4 +1,4 @@
-# Bearing_Diagnosis
+# CNN-Transformer-for-Bearing-Fault-Diagnosis
 
 <div align="center">
 
