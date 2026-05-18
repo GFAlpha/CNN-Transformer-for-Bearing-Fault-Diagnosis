@@ -1,19 +1,11 @@
-# scripts/visualize_input_waveforms.py
-# -*- coding: utf-8 -*-
 """
 输入数据可视化脚本，用于软硬件验收展示。
-
 功能：
 1. 从 data/raw 中读取 CWRU 原始 .mat 文件，绘制四类原始时域波形；
-2. 从 data/processed/X.npy 和 y.npy 中读取模型实际训练输入，绘制四类 1024 点切片波形；
-3. 输出图片到 analysis_results/input_visualization/。
-
-数据流：
-data/raw 原始 CWRU .mat 文件
-        ↓ prepare_cwru.py
-data/processed/X.npy, y.npy
-        ↓ 训练脚本
-模型训练与测试
+2. 从 data/processed/X.npy 和 y.npy 中读取模型实际输入，绘制四类 1024 点切片波形；
+3. 从 data/noise_test/X_test_snr_3.npy 和 y_test.npy 中读取噪声测试集，
+   绘制 SNR=3dB 条件下四类噪声样本时域波形；
+4. 输出图片到 analysis_results/input_visualization/。
 """
 
 from pathlib import Path
@@ -29,17 +21,19 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
+NOISE_TEST_DIR = PROJECT_ROOT / "data" / "noise_test"
 OUTPUT_DIR = PROJECT_ROOT / "analysis_results" / "input_visualization"
 
 RAW_SHOW_LENGTH = 4096
 WINDOW_LENGTH = 1024
 FS = 12000
 
+# 默认展示 SNR=3dB 噪声测试集
+NOISE_SNR = 3
+
 
 # =========================
 # 2. 类别配置
-# 注意：
-# 这里 class_id 必须和 y.npy 中的标签保持一致
 # =========================
 CLASS_INFO = {
     0: {
@@ -107,13 +101,13 @@ def find_signal_from_mat(mat_dict, min_len=2048):
         elif "time" in lower_key:
             candidate_keys.append(key)
 
-    # 先按 key 名查找
+    # 优先根据 key 名查找
     for key in candidate_keys:
         value = np.squeeze(mat_dict[key])
         if isinstance(value, np.ndarray) and value.ndim == 1 and value.size >= min_len:
             return value.astype(np.float32), key
 
-    # 如果 key 名没有匹配成功，就兜底找任意足够长的一维数组
+    # 兜底找任意足够长的一维数组
     for key, value in mat_dict.items():
         if key.startswith("__"):
             continue
@@ -147,46 +141,31 @@ def find_raw_mat_file_by_class(class_id):
 
 
 def find_processed_xy_files():
-    """
-    寻找模型训练输入 X.npy 和标签 y.npy。
-    优先使用你的项目当前结构：
-    data/processed/X.npy
-    data/processed/y.npy
-    """
+    """寻找 data/processed/X.npy 和 y.npy。"""
     x_path = PROCESSED_DATA_DIR / "X.npy"
     y_path = PROCESSED_DATA_DIR / "y.npy"
 
     if x_path.exists() and y_path.exists():
         return x_path, y_path
 
-    npy_files = list(PROCESSED_DATA_DIR.rglob("*.npy"))
+    raise FileNotFoundError(
+        f"未找到处理后数据：\n{x_path}\n{y_path}\n请先运行 scripts/prepare_cwru.py"
+    )
 
-    x_candidates = []
-    y_candidates = []
 
-    for file in npy_files:
-        lower = file.name.lower()
+def find_noise_xy_files(snr=3):
+    """寻找噪声测试集 X_test_snr_3.npy 和 y_test.npy。"""
+    x_noise_path = NOISE_TEST_DIR / f"X_test_snr_{snr}.npy"
+    y_noise_path = NOISE_TEST_DIR / "y_test.npy"
 
-        if lower in ["x.npy", "x_train.npy", "train_x.npy"]:
-            x_candidates.append(file)
+    if x_noise_path.exists() and y_noise_path.exists():
+        return x_noise_path, y_noise_path
 
-        if lower in ["y.npy", "y_train.npy", "train_y.npy", "label.npy", "labels.npy"]:
-            y_candidates.append(file)
-
-    if x_candidates and y_candidates:
-        return x_candidates[0], y_candidates[0]
-
-    print("[错误] 未找到处理后的 X/y 数据。")
-    print(f"[检查目录] {PROCESSED_DATA_DIR}")
-    print("[当前发现的 npy 文件]")
-    for file in npy_files:
-        print(" -", file)
-
-    raise FileNotFoundError("未找到 X.npy 和 y.npy，请检查 data/processed 目录。")
+    return None, None
 
 
 def select_one_sample_per_class(X, y):
-    """从 X.npy/y.npy 中每个类别选一个样本。"""
+    """从 X/y 中每个类别选一个样本。"""
     X = np.asarray(X)
     y = np.asarray(y).reshape(-1)
 
@@ -196,7 +175,7 @@ def select_one_sample_per_class(X, y):
         idxs = np.where(y == class_id)[0]
 
         if len(idxs) == 0:
-            print(f"[警告] y.npy 中没有找到类别 {class_id}：{CLASS_INFO[class_id]['name_cn']}")
+            print(f"[警告] 标签中没有找到类别 {class_id}：{CLASS_INFO[class_id]['name_cn']}")
             continue
 
         sample = np.asarray(X[idxs[0]]).reshape(-1)
@@ -319,6 +298,64 @@ def plot_train_window_waveforms():
     print(f"[完成] 训练输入切片波形图已保存：{out_path}")
 
 
+def plot_noisy_test_waveforms(snr=3):
+    """绘制 SNR=3dB 噪声测试集四类时域波形。"""
+    x_file, y_file = find_noise_xy_files(snr=snr)
+
+    if x_file is None or y_file is None:
+        print()
+        print(f"[跳过] 未找到 SNR={snr}dB 噪声测试集。")
+        print(f"[期望文件] {NOISE_TEST_DIR / f'X_test_snr_{snr}.npy'}")
+        print(f"[期望文件] {NOISE_TEST_DIR / 'y_test.npy'}")
+        print("[提示] 如需生成噪声测试集，请先运行：python scripts\\make_noisy_testset.py")
+        return
+
+    X = load_npy(x_file)
+    y = load_npy(y_file)
+
+    print(f"[信息] 噪声测试输入文件：{x_file}")
+    print(f"[信息] 噪声测试标签文件：{y_file}")
+    print(f"[信息] X_noise shape = {X.shape}")
+    print(f"[信息] y_noise shape = {y.shape}")
+
+    selected = select_one_sample_per_class(X, y)
+
+    fig, axes = plt.subplots(4, 1, figsize=(12, 9), sharex=True)
+
+    for row, (class_id, cfg) in enumerate(CLASS_INFO.items()):
+        ax = axes[row]
+
+        if class_id not in selected:
+            ax.text(
+                0.5,
+                0.5,
+                f"未找到 {cfg['name_cn']} 噪声测试样本",
+                ha="center",
+                va="center",
+            )
+            ax.set_title(f"{cfg['name_cn']}（未找到噪声测试样本）")
+            ax.grid(True, linestyle="--", alpha=0.4)
+            continue
+
+        signal = selected[class_id][:WINDOW_LENGTH]
+        sample_points = np.arange(len(signal))
+
+        ax.plot(sample_points, signal, linewidth=0.8)
+        ax.set_title(f"{cfg['name_cn']}噪声测试样本波形（SNR={snr}dB，窗口长度={len(signal)}）")
+        ax.set_ylabel("幅值")
+        ax.grid(True, linestyle="--", alpha=0.4)
+
+    axes[-1].set_xlabel("采样点")
+    fig.suptitle(f"SNR={snr}dB 噪声测试集输入样本时域波形示例", fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+
+    out_path = OUTPUT_DIR / f"noisy_test_windows_snr_{snr}_4classes.png"
+    plt.savefig(out_path, dpi=300)
+    plt.close()
+
+    print(f"[完成] SNR={snr}dB 噪声测试集波形图已保存：{out_path}")
+
+
 def print_data_flow_summary():
     """打印验收时可说明的数据流。"""
     print("\n" + "=" * 70)
@@ -326,13 +363,18 @@ def print_data_flow_summary():
     print("=" * 70)
     print(f"原始数据目录：{RAW_DATA_DIR}")
     print(f"处理后数据目录：{PROCESSED_DATA_DIR}")
+    print(f"噪声测试集目录：{NOISE_TEST_DIR}")
     print(f"可视化输出目录：{OUTPUT_DIR}")
     print()
     print("data/raw 原始 CWRU .mat 文件")
     print("        ↓ prepare_cwru.py 读取原始信号并按 1024 点窗口切片")
     print("data/processed/X.npy, y.npy")
-    print("        ↓ 训练脚本读取 X/y")
-    print("CNN、LSTM、Transformer、CNN+Transformer 等模型训练与测试")
+    print("        ↓ split_dataset_fixed.py 固定划分训练集、验证集、测试集")
+    print("data/splits/X_train.npy, X_val.npy, X_test.npy ...")
+    print("        ↓ make_noisy_testset.py 对测试集加入 AWGN 噪声")
+    print("data/noise_test/X_test_snr_3.npy 等噪声测试集")
+    print("        ↓ 训练脚本 / 噪声测试脚本")
+    print("CNN、LSTM、Transformer、CNN+Transformer 等模型训练与鲁棒性测试")
     print("=" * 70)
 
 
@@ -341,7 +383,7 @@ def main():
     ensure_output_dir()
 
     print("=" * 70)
-    print("输入数据可视化：原始 CWRU 信号 + 模型训练输入切片")
+    print("输入数据可视化：原始 CWRU 信号 + 模型输入切片 + 噪声测试集")
     print("=" * 70)
 
     print("\n[步骤1] 绘制原始 CWRU 四类时域波形")
@@ -349,6 +391,9 @@ def main():
 
     print("\n[步骤2] 绘制模型实际训练输入 1024 点切片波形")
     plot_train_window_waveforms()
+
+    print(f"\n[步骤3] 绘制 SNR={NOISE_SNR}dB 噪声测试集四类时域波形")
+    plot_noisy_test_waveforms(snr=NOISE_SNR)
 
     print_data_flow_summary()
 

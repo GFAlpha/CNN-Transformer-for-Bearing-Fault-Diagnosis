@@ -1,193 +1,917 @@
-# Bearing_Diagnosis（轴承故障诊断系统）
+# Bearing_Diagnosis
 
-本项目用于实现基于深度学习的轴承故障诊断，包括数据预处理、模型构建、训练与评估流程。  
-使用 **PyTorch** 实现，并支持 **GPU 加速训练（CUDA 13.0）**。
+<div align="center">
 
-本文档将详细介绍项目结构、各文件与文件夹的用途，以及项目的安装与运行方式。
+# Bearing Fault Diagnosis Based on Deep Learning
+
+本科毕业设计项目 / Undergraduate Graduation Project
+
+Author: GFAlpha
+
+</div>
 
 ---
 
-## 📁 项目结构
+# English Version
 
-BEARING_Diagnosis/
-├─ configs/
-│ └─ default.yaml
+## Introduction
+
+This repository contains the undergraduate graduation project of **GFAlpha**.
+
+The project focuses on intelligent bearing fault diagnosis using deep learning methods based on the:
+
+```text
+Case Western Reserve University (CWRU) Bearing Dataset
+```
+
+The project implements:
+
+- Data preprocessing and slicing
+- Deep learning model training
+- Traditional machine learning baselines
+- Noise robustness testing
+- Feature visualization
+- Confusion matrix analysis
+- Model complexity analysis
+- Deep Learning vs Machine Learning comparison
+
+The final proposed model is:
+
+```text
+CNN + Transformer + NoiseAug
+```
+
+Core ideas:
+
+- CNN extracts local fault features
+- Transformer models global dependencies
+- Noise augmentation improves robustness under noisy environments
+
+---
+
+# Project Structure
+
+```text
+Bearing_Diagnosis/
 │
-├─ data/
-│ ├─ raw/
-│ └─ processed/
+├── configs/                         # Configuration files
+│   └── default.yaml
 │
-├─ env/
+├── data/
+│   ├── raw/                         # Original CWRU .mat files
+│   │
+│   ├── processed/                   # Processed full dataset
+│   │   ├── X.npy
+│   │   └── y.npy
+│   │
+│   ├── splits/                      # Train / val / test split
+│   │
+│   └── noise_test/                  # Noisy test datasets
 │
-├─ experiments/
-│ └─ exp1/
-│ └─ logs/
+├── models/                          # Saved model weights
 │
-├─ logs/
+├── results/                         # Training/testing results
 │
-├─ models/
+├── noise_results/                   # Noise robustness results
 │
-├─ notebooks/
-│ └─ EDA.ipynb
+├── analysis_results/                # Analysis figures and summary tables
 │
-├─ scripts/
-│ ├─ test_torch.py
-│ └─ test_cuda.py
+├── scripts/                         # Main executable scripts
 │
-├─ src/
-│ ├─ init.py
-│ ├─ data.py
-│ ├─ eval.py
-│ ├─ model.py
-│ ├─ train.py
+├── src/                             # Core modules
 │
-├─ .gitignore
-├─ README.md
-└─ requirements.txt
+└── README.md
+```
 
 ---
 
-## 📂 各文件夹与文件说明
+# Dataset
 
-### ### 1. `configs/`
-存放模型训练与实验用的配置文件（YAML）。
+This project uses:
 
-- **default.yaml**  
-  - 保存训练参数（batch size / lr / epochs 等）
-  - 保存模型结构超参（层数、隐藏维度等）
-  - 保存数据路径  
-  可在此文件中切换不同模型或超参组合。
+```text
+Case Western Reserve University (CWRU) Bearing Dataset
+```
 
----
+The original vibration signals are stored under:
 
-### ### 2. `data/`
-存放项目所有数据。
+```text
+data/raw/
+```
 
-#### `data/raw/`
-- 原始数据  
-- 推荐放 CWRU、MFPT 等数据集的原始下载文件  
-- **不会上传到 GitHub（已添加到 .gitignore）**
+Directory example:
 
-#### `data/processed/`
-- 存放预处理完的数据，如：  
-  - 分段后的数据  
-  - FFT 数据  
-  - npy/tensor 格式数据  
-- 可在训练中直接加载，提高速度。
+```text
+data/raw/CWRU_Normal/
+data/raw/CWRU_12K_DE/Ball/
+data/raw/CWRU_12K_DE/Inner Race/
+data/raw/CWRU_12K_DE/Outer Race/
+```
 
----
+Mainly used:
 
-### ### 3. `env/`
-Python 虚拟环境目录。  
-用于隔离依赖，不会上传到 GitHub（.gitignore 已排除）。
+- 12k Drive End vibration signals
+- Normal condition
+- Ball fault
+- Inner race fault
+- Outer race fault
 
 ---
 
-### ### 4. `experiments/`
-用于保存不同实验（exp1, exp2, …）的运行结果和日志。
+# Data Processing Pipeline
 
-#### `experiments/exp1/logs/`
-- TensorBoard 日志文件  
-- 训练时 loss/accuracy 曲线  
-- 可视化训练过程
+Complete workflow:
 
-未来可以加入：
-
-- `metrics.json`
-- `config.yaml`
-- `results/`
-
----
-
-### ### 5. `logs/`
-通用日志文件目录。  
-存放训练过程中的打印日志或系统运行信息。
-
----
-
-### ### 6. `models/`
-用于保存训练得到的模型权重（.pth/.pt 文件）。  
-大文件不会上传至 GitHub。
+```text
+Original CWRU .mat signals
+        ↓
+prepare_cwru.py
+        ↓
+1024-point window slicing
+        ↓
+X.npy / y.npy
+        ↓
+Fixed train/validation/test split
+        ↓
+Model training
+        ↓
+Noise robustness testing
+        ↓
+Analysis and visualization
+```
 
 ---
 
-### ### 7. `notebooks/`
-存放 Jupyter Notebook，主要用于：
+# Environment & Dependencies
 
-- 数据可视化  
-- EDA（探索性数据分析）  
-- 原型调试  
-- 绘制波形图、FFT 图、特征分布图
+## PyTorch Environment
 
-当前包含：
+Recommended environment:
 
-- **EDA.ipynb**
+```text
+Python 3.10+
+PyTorch 2.9.1+cu130
+TorchVision 0.24.1+cu130
+TorchAudio 2.9.1+cu130
+CUDA 13.0
+Windows 11
+```
 
----
-
-### ### 8. `scripts/`
-存放可直接运行的脚本，如：
-
-- **test_torch.py**  
-  检查 PyTorch 是否安装成功
-
-- **test_cuda.py**  
-  检查 CUDA 是否可用、GPU 是否被识别
-
-未来可加入：
-
-- `download_data.py`
-- `run_training.ps1`（一键训练）
+GPU acceleration is recommended.
 
 ---
 
-### ### 9. `src/`（核心代码目录）
-所有项目的核心代码均放在此目录。
+## Install PyTorch
 
-#### `data.py`
-- Dataset 类定义  
-- 数据加载  
-- 滑窗切片 / FFT 等预处理逻辑  
-- DataLoader 构建
+CUDA version:
 
-#### `model.py`
-- 深度学习模型定义（如 CNN / LSTM / Transformer）  
-- 可以在这里扩展不同模型用于对比
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
+```
 
-#### `train.py`
-- 训练主循环  
-- 日志记录  
-- 训练过程可视化数据生成  
-- 模型保存  
-- 配置加载（YAML）
+CPU version:
 
-常用命令：
-bash
-python src/train.py
-eval.py
-加载训练好的权重
-在测试集上评估性能
-输出 Accuracy / F1 Score / Confusion Matrix
-保存评估结果
-__init__.py
-标记 src 为 Python 包，使其可被 import。
+```bash
+pip install torch torchvision torchaudio
+```
 
+---
 
-### ### 10. `.gitignore`
+## Install Required Packages
 
-用于忽略以下内容：
+```bash
+pip install numpy scipy matplotlib pandas scikit-learn seaborn joblib thop tqdm pyyaml opencv-python
+```
 
-虚拟环境 env/
+---
 
-数据集 data/raw/
+## Verify Environment
 
-模型权重 models/
+```bash
+python scripts/test_torch.py
+python scripts/test_cuda.py
+```
 
-日志 logs/
+These scripts verify:
 
-缓存文件、系统文件
+- PyTorch installation
+- CUDA availability
+- GPU information
 
-保持 GitHub 仓库干净。
+---
 
-### ### 11. `requirements.txt`
-项目依赖记录文件
+# Main Scripts
+
+# 1. Data Preparation
+
+## prepare_cwru.py
+
+Location:
+
+```text
+scripts/prepare_cwru.py
+```
+
+Functions:
+
+- Load original CWRU `.mat` files
+- Slice signals using:
+  - Window length = 1024
+  - Step size = 1024
+- Generate:
+  - `X.npy`
+  - `y.npy`
+
+Run:
+
+```bash
+python scripts/prepare_cwru.py
+```
+
+---
+
+## split_dataset_fixed.py
+
+Location:
+
+```text
+scripts/split_dataset_fixed.py
+```
+
+Functions:
+
+- Fixed train/validation/test split
+- Random seed = 42
+
+Run:
+
+```bash
+python scripts/split_dataset_fixed.py
+```
+
+---
+
+# 2. Deep Learning Model Training
+
+## CNN
+
+```bash
+python scripts/train_cnn_v2.py
+```
+
+## LSTM
+
+```bash
+python scripts/train_rnn_v4.py
+```
+
+## CNN + BiLSTM
+
+```bash
+python scripts/train_cnn_bilstm.py
+```
+
+## CNN + BiLSTM + Attention
+
+```bash
+python scripts/train_cnn_bilstm_att.py
+```
+
+## Transformer
+
+```bash
+python scripts/train_transformer_v2.py
+```
+
+## CNN + Transformer
+
+```bash
+python scripts/train_cnn_transformer.py
+```
+
+## CNN + Transformer + NoiseAug
+
+```bash
+python scripts/train_cnn_transformer_noiseaug.py
+```
+
+---
+
+# 3. Traditional Machine Learning Baselines
+
+```bash
+python scripts/train_ml_baselines.py
+```
+
+Includes:
+
+- SVM (RBF)
+- Random Forest
+- KNN
+
+---
+
+# 4. Noise Robustness Testing
+
+## Generate noisy test datasets
+
+```bash
+python scripts/make_noisy_testset.py
+```
+
+Generated SNR levels:
+
+```text
+9 dB
+6 dB
+3 dB
+0 dB
+```
+
+---
+
+## Test DL models under noise
+
+```bash
+python scripts/noise_test_all_models.py
+```
+
+---
+
+## Test ML models under noise
+
+```bash
+python scripts/noise_test_ml_models.py
+```
+
+---
+
+# 5. Analysis Scripts
+
+## Overall result analysis
+
+```bash
+python scripts/analyze_all_results_v4.py
+```
+
+Outputs:
+
+- Accuracy comparison
+- Training time comparison
+- Inference time comparison
+
+---
+
+## Noise robustness analysis
+
+```bash
+python scripts/analyze_noise_results.py
+```
+
+---
+
+## Noise curve plotting
+
+```bash
+python scripts/plot_noise_curve.py
+```
+
+---
+
+## Confusion matrix plotting
+
+```bash
+python scripts/plot_confusion_matrices_all.py
+```
+
+---
+
+## Feature visualization
+
+```bash
+python scripts/analyze_feature_visualization.py
+```
+
+Includes:
+
+- t-SNE
+- PCA
+
+---
+
+## Model complexity analysis
+
+```bash
+python scripts/analyze_model_complexity.py
+```
+
+Includes:
+
+- Parameter count
+- FLOPs
+
+---
+
+## DL vs ML comparison
+
+```bash
+python scripts/analyze_dl_vs_ml.py
+```
+
+---
+
+# 6. One-Click Analysis Pipeline
+
+```bash
+python scripts/analysis_all.py
+```
+
+Automatically runs:
+
+- Noise dataset generation
+- Noise testing
+- Result analysis
+- Confusion matrix plotting
+- Complexity analysis
+- DL vs ML comparison
+
+---
+
+# Visualization Script
+
+```bash
+python scripts/visualize_input_waveforms.py
+```
+
+Functions:
+
+- Visualize original CWRU signals
+- Visualize 1024-point model inputs
+- Visualize noisy test samples
+
+---
+
+# Proposed Model
+
+Final proposed architecture:
+
+```text
+Input Signal
+      ↓
+CNN Feature Extraction
+      ↓
+Transformer Global Modeling
+      ↓
+Classification Head
+```
+
+Noise augmentation is additionally introduced during training to improve robustness under low-SNR conditions.
+
+---
+
+# Author
+
+GFAlpha
+
+Undergraduate Graduation Project
+
+Bearing Fault Diagnosis Based on Deep Learning
+
+---
+
+# 中文版本
+
+# 项目简介
+
+本仓库为：
+
+```text
+GFAlpha 本科毕业设计项目
+```
+
+项目主题为：
+
+```text
+基于深度学习的轴承故障诊断
+```
+
+项目基于：
+
+```text
+凯斯西储大学（CWRU）轴承数据集
+```
+
+实现了：
+
+- 数据预处理与切片
+- 深度学习模型训练
+- 传统机器学习基线对比
+- 噪声鲁棒性测试
+- 特征可视化
+- 混淆矩阵分析
+- 模型复杂度分析
+- 深度学习与传统机器学习对比
+
+最终提出模型：
+
+```text
+CNN + Transformer + NoiseAug
+```
+
+核心思想：
+
+- CNN 提取局部特征
+- Transformer 建模全局依赖
+- NoiseAug 提升低信噪比环境下鲁棒性
+
+---
+
+# 项目结构
+
+```text
+Bearing_Diagnosis/
+│
+├── configs/                         # 配置文件
+├── data/                            # 数据集目录
+├── models/                          # 模型权重
+├── results/                         # 实验结果
+├── noise_results/                   # 噪声测试结果
+├── analysis_results/                # 分析结果与图表
+├── scripts/                         # 核心脚本
+├── src/                             # 核心模块
+└── README.md
+```
+
+---
+
+# 数据集
+
+项目使用：
+
+```text
+CWRU（Case Western Reserve University）轴承数据集
+```
+
+原始 `.mat` 数据位置：
+
+```text
+data/raw/
+```
+
+目录示例：
+
+```text
+data/raw/CWRU_Normal/
+data/raw/CWRU_12K_DE/Ball/
+data/raw/CWRU_12K_DE/Inner Race/
+data/raw/CWRU_12K_DE/Outer Race/
+```
+
+主要使用：
+
+- 12k Drive End 信号
+- 正常状态
+- 滚动体故障
+- 内圈故障
+- 外圈故障
+
+---
+
+# 数据处理流程
+
+完整数据流：
+
+```text
+原始 CWRU .mat 信号
+        ↓
+prepare_cwru.py
+        ↓
+1024 点窗口切片
+        ↓
+X.npy / y.npy
+        ↓
+固定训练/验证/测试集划分
+        ↓
+模型训练
+        ↓
+噪声鲁棒性测试
+        ↓
+分析与可视化
+```
+
+---
+
+# 环境与依赖
+
+## PyTorch 环境
+
+推荐环境：
+
+```text
+Python 3.10+
+PyTorch 2.9.1+cu130
+TorchVision 0.24.1+cu130
+TorchAudio 2.9.1+cu130
+CUDA 13.0
+Windows 11
+```
+
+推荐使用 NVIDIA GPU 训练。
+
+---
+
+## 安装 PyTorch
+
+CUDA 版本：
+
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
+```
+
+CPU 版本：
+
+```bash
+pip install torch torchvision torchaudio
+```
+
+---
+
+## 安装项目依赖
+
+```bash
+pip install numpy scipy matplotlib pandas scikit-learn seaborn joblib thop tqdm pyyaml opencv-python
+```
+
+---
+
+## 验证环境
+
+```bash
+python scripts/test_torch.py
+python scripts/test_cuda.py
+```
+
+可验证：
+
+- PyTorch 是否安装成功
+- CUDA 是否可用
+- GPU 信息
+
+---
+
+# 主要脚本说明
+
+# 1. 数据准备
+
+## prepare_cwru.py
+
+功能：
+
+- 读取原始 CWRU `.mat`
+- 进行 1024 点无重叠切片
+- 生成：
+  - `X.npy`
+  - `y.npy`
+
+运行：
+
+```bash
+python scripts/prepare_cwru.py
+```
+
+---
+
+## split_dataset_fixed.py
+
+功能：
+
+- 固定随机种子划分训练集
+- 生成 train/val/test
+
+运行：
+
+```bash
+python scripts/split_dataset_fixed.py
+```
+
+---
+
+# 2. 深度学习模型训练
+
+## CNN
+
+```bash
+python scripts/train_cnn_v2.py
+```
+
+## LSTM
+
+```bash
+python scripts/train_rnn_v4.py
+```
+
+## CNN+BiLSTM
+
+```bash
+python scripts/train_cnn_bilstm.py
+```
+
+## CNN+BiLSTM+Attention
+
+```bash
+python scripts/train_cnn_bilstm_att.py
+```
+
+## Transformer
+
+```bash
+python scripts/train_transformer_v2.py
+```
+
+## CNN+Transformer
+
+```bash
+python scripts/train_cnn_transformer.py
+```
+
+## CNN+Transformer(NoiseAug)
+
+```bash
+python scripts/train_cnn_transformer_noiseaug.py
+```
+
+---
+
+# 3. 传统机器学习基线
+
+```bash
+python scripts/train_ml_baselines.py
+```
+
+包括：
+
+- SVM
+- RandomForest
+- KNN
+
+---
+
+# 4. 噪声鲁棒性测试
+
+## 生成噪声测试集
+
+```bash
+python scripts/make_noisy_testset.py
+```
+
+SNR：
+
+```text
+9 dB
+6 dB
+3 dB
+0 dB
+```
+
+---
+
+## 深度学习模型噪声测试
+
+```bash
+python scripts/noise_test_all_models.py
+```
+
+---
+
+## 传统机器学习模型噪声测试
+
+```bash
+python scripts/noise_test_ml_models.py
+```
+
+---
+
+# 5. 分析脚本
+
+## 综合结果分析
+
+```bash
+python scripts/analyze_all_results_v4.py
+```
+
+---
+
+## 噪声鲁棒性分析
+
+```bash
+python scripts/analyze_noise_results.py
+```
+
+---
+
+## 噪声曲线绘制
+
+```bash
+python scripts/plot_noise_curve.py
+```
+
+---
+
+## 混淆矩阵绘制
+
+```bash
+python scripts/plot_confusion_matrices_all.py
+```
+
+---
+
+## 特征可视化
+
+```bash
+python scripts/analyze_feature_visualization.py
+```
+
+包括：
+
+- t-SNE
+- PCA
+
+---
+
+## 模型复杂度分析
+
+```bash
+python scripts/analyze_model_complexity.py
+```
+
+包括：
+
+- 参数量
+- FLOPs
+
+---
+
+## 深度学习 vs 传统机器学习
+
+```bash
+python scripts/analyze_dl_vs_ml.py
+```
+
+---
+
+# 一键分析总脚本
+
+```bash
+python scripts/analysis_all.py
+```
+
+自动完成：
+
+- 噪声数据生成
+- 噪声测试
+- 结果汇总
+- 混淆矩阵绘制
+- 模型复杂度分析
+- DL vs ML 对比
+
+---
+
+# 输入数据可视化脚本
+
+```bash
+python scripts/visualize_input_waveforms.py
+```
+
+功能：
+
+- 原始 CWRU 波形可视化
+- 1024 点模型输入可视化
+- 噪声测试集可视化
+
+---
+
+# 提出模型结构
+
+最终提出模型结构：
+
+```text
+输入信号
+    ↓
+CNN 局部特征提取
+    ↓
+Transformer 全局依赖建模
+    ↓
+分类输出
+```
+
+并在训练阶段引入 NoiseAug 噪声增强策略，以提高低信噪比环境下的鲁棒性。
+
+---
+
+# 作者
+
+GFAlpha
+
+本科毕业设计项目
+
+基于深度学习的轴承故障诊断
