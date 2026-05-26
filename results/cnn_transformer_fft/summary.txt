@@ -1,0 +1,9 @@
+CNN+Transformer(FFT) Results
+Test Accs: [1.0, 0.9988597491448119, 0.9988597491448119, 0.9988597491448119, 0.9977194982896237]
+Mean Acc: 0.998860
+Std Acc : 0.000721
+Avg Train Time (s): 36.349733
+Avg Inference Time (s/step, per batch): 0.00301538
+Best Run (by Test Acc): Run 1
+Best Run Test Acc: 1.000000
+Best Model Overall: models\cnn_transformer_fft\best_model_overall.pth
