@@ -1,0 +1,9 @@
+CNN+Transformer(STFT) Results
+Test Accs: [0.9965792474344356, 0.9954389965792474, 0.9942987457240593, 0.9977194982896237, 0.9988597491448119]
+Mean Acc: 0.996579
+Std Acc : 0.001613
+Avg Train Time (s): 35.233463
+Avg Inference Time (s/step, per batch): 0.00299645
+Best Run (by Test Acc): Run 5
+Best Run Test Acc: 0.998860
+Best Model Overall: models\cnn_transformer_stft\best_model_overall.pth
